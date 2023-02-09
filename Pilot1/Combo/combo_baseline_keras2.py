@@ -28,12 +28,15 @@ from tensorflow.keras.callbacks import (
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import get_custom_objects
+import tensorflow as tf
+from callback_utils import RecordBatch
 
 mpl.use("Agg")
 
 import candle
 import combo
 import NCI60
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -726,6 +729,9 @@ def initialize_parameters(default_model="combo_default_model.txt"):
 
 def run(params):
     args = candle.ArgumentStruct(**params)
+
+    save_dir = f'benchmark_logs/{args.num_gpu}x{args.gpu_type}'
+
     candle.set_seed(args.rng_seed)
     ext = extension_from_parameters(args)
     verify_path(args.save_path)
@@ -760,14 +766,9 @@ def run(params):
     train_steps = int(loader.n_train / args.batch_size)
     val_steps = int(loader.n_val / args.batch_size)
 
-    model = build_model(loader, args, verbose=True)
-    model.summary()
+    # model = build_model(loader, args, verbose=True)
+    # model.summary()
     # candle.plot_model(model, to_file=prefix+'.model.png', show_shapes=True)
-
-    if args.cp:
-        model_json = model.to_json()
-        with open(prefix + ".model.json", "w") as f:
-            print(model_json, file=f)
 
     def warmup_scheduler(epoch):
         lr = args.learning_rate or base_lr * args.batch_size / 100
@@ -779,14 +780,10 @@ def run(params):
     df_pred_list = []
 
     cv_ext = ""
-    cv = args.cv if args.cv > 1 else 1
 
-    fold = 0
-    while fold < cv:
-        if args.cv > 1:
-            logger.info("Cross validation fold {}/{}:".format(fold + 1, cv))
-            cv_ext = ".cv{}".format(fold + 1)
+    strategy = tf.distribute.MirroredStrategy()
 
+    with strategy.scope():
         model = build_model(loader, args)
 
         optimizer = optimizers.deserialize({"class_name": args.optimizer, "config": {}})
@@ -796,117 +793,102 @@ def run(params):
 
         model.compile(loss=args.loss, optimizer=optimizer, metrics=[mae, r2])
 
-        # calculate trainable and non-trainable params
-        params.update(candle.compute_trainable_params(model))
+    # calculate trainable and non-trainable params
+    params.update(candle.compute_trainable_params(model))
 
-        candle_monitor = candle.CandleRemoteMonitor(params=params)
-        timeout_monitor = candle.TerminateOnTimeOut(params["timeout"])
+    candle_monitor = candle.CandleRemoteMonitor(params=params)
+    timeout_monitor = candle.TerminateOnTimeOut(params["timeout"])
 
-        reduce_lr = ReduceLROnPlateau(
-            monitor="val_loss", factor=0.5, patience=5, min_lr=0.00001
+    reduce_lr = ReduceLROnPlateau(
+        monitor="val_loss", factor=0.5, patience=5, min_lr=0.00001
+    )
+    warmup_lr = LearningRateScheduler(warmup_scheduler)
+    checkpointer = ModelCheckpoint(
+        prefix + cv_ext + ".weights.h5", save_best_only=True, save_weights_only=True
+    )
+    tensorboard = TensorBoard(log_dir="tb/tb{}{}".format(ext, cv_ext))
+    history_logger = LoggingCallback(logger.debug)
+    model_recorder = ModelRecorder()
+
+    custom_callback = RecordBatch(save_dir = save_dir, 
+                                    model_name = 'combo',
+                                    end_batch = args.iter_limit)
+
+    # callbacks = [history_logger, model_recorder]
+    callbacks = [candle_monitor, timeout_monitor, custom_callback]
+    if args.reduce_lr:
+        callbacks.append(reduce_lr)
+    if args.warmup_lr:
+        callbacks.append(warmup_lr)
+    if args.cp:
+        callbacks.append(checkpointer)
+    if args.tb:
+        callbacks.append(tensorboard)
+
+    if args.gen:
+        history = model.fit_generator(
+            train_gen,
+            train_steps,
+            epochs=args.epochs,
+            callbacks=callbacks,
+            validation_data=val_gen,
+            validation_steps=val_steps,
         )
-        warmup_lr = LearningRateScheduler(warmup_scheduler)
-        checkpointer = ModelCheckpoint(
-            prefix + cv_ext + ".weights.h5", save_best_only=True, save_weights_only=True
+    else:
+        (
+            x_train_list,
+            y_train,
+            x_val_list,
+            y_val,
+            df_train,
+            df_val,
+        ) = loader.load_data()
+
+        y_shuf = np.random.permutation(y_val)
+        log_evaluation(
+            evaluate_prediction(y_val, y_shuf),
+            description="Between random pairs in y_val:",
         )
-        tensorboard = TensorBoard(log_dir="tb/tb{}{}".format(ext, cv_ext))
-        history_logger = LoggingCallback(logger.debug)
-        model_recorder = ModelRecorder()
+        history = model.fit(
+            x_train_list,
+            y_train,
+            batch_size=args.batch_size,
+            shuffle=args.shuffle,
+            epochs=args.epochs,
+            callbacks=callbacks,
+            validation_data=(x_val_list, y_val),
+        )
 
-        # callbacks = [history_logger, model_recorder]
-        callbacks = [candle_monitor, timeout_monitor, history_logger, model_recorder]
-        if args.reduce_lr:
-            callbacks.append(reduce_lr)
-        if args.warmup_lr:
-            callbacks.append(warmup_lr)
-        if args.cp:
-            callbacks.append(checkpointer)
-        if args.tb:
-            callbacks.append(tensorboard)
+    if args.cp:
+        model.load_weights(prefix + cv_ext + ".weights.h5")
 
-        if args.gen:
-            history = model.fit_generator(
-                train_gen,
-                train_steps,
-                epochs=args.epochs,
-                callbacks=callbacks,
-                validation_data=val_gen,
-                validation_steps=val_steps,
-            )
-            fold += 1
-        else:
-            if args.cv > 1:
-                (
-                    x_train_list,
-                    y_train,
-                    x_val_list,
-                    y_val,
-                    df_train,
-                    df_val,
-                ) = loader.load_data_cv(fold)
-            else:
-                (
-                    x_train_list,
-                    y_train,
-                    x_val_list,
-                    y_val,
-                    df_train,
-                    df_val,
-                ) = loader.load_data()
+    if not args.gen:
+        y_val_pred = model.predict(x_val_list, batch_size=args.batch_size).flatten()
+        scores = evaluate_prediction(y_val, y_val_pred)
 
-            y_shuf = np.random.permutation(y_val)
-            log_evaluation(
-                evaluate_prediction(y_val, y_shuf),
-                description="Between random pairs in y_val:",
-            )
-            history = model.fit(
-                x_train_list,
-                y_train,
-                batch_size=args.batch_size,
-                shuffle=args.shuffle,
-                epochs=args.epochs,
-                callbacks=callbacks,
-                validation_data=(x_val_list, y_val),
-            )
+        log_evaluation(scores)
+        df_val.is_copy = False
+        df_val.loc[:, "GROWTH_PRED"] = y_val_pred
+        df_val.loc[:, "GROWTH_ERROR"] = y_val_pred - y_val
+        df_pred_list.append(df_val)
 
-        if args.cp:
-            model.load_weights(prefix + cv_ext + ".weights.h5")
+    if args.cp:
+        # model.save(prefix+'.model.h5')
+        model_recorder.best_model.save(prefix + ".model.h5")
 
-        if not args.gen:
-            y_val_pred = model.predict(x_val_list, batch_size=args.batch_size).flatten()
-            scores = evaluate_prediction(y_val, y_val_pred)
-            if args.cv > 1 and scores[args.loss] > args.max_val_loss:
-                logger.warn(
-                    "Best val_loss {} is greater than {}; retrain the model...".format(
-                        scores[args.loss], args.max_val_loss
-                    )
-                )
-                continue
-            else:
-                fold += 1
-            log_evaluation(scores)
-            df_val.is_copy = False
-            df_val.loc[:, "GROWTH_PRED"] = y_val_pred
-            df_val.loc[:, "GROWTH_ERROR"] = y_val_pred - y_val
-            df_pred_list.append(df_val)
+        # test reloadded model prediction
+        # new_model = keras.models.load_model(prefix+'.model.h5')
+        # new_model.load_weights(prefix+cv_ext+'.weights.h5')
+        # new_pred = new_model.predict(x_val_list, batch_size=args.batch_size).flatten()
+        # print('y_val:', y_val[:10])
+        # print('old_pred:', y_val_pred[:10])
+        # print('new_pred:', new_pred[:10])
 
-        if args.cp:
-            # model.save(prefix+'.model.h5')
-            model_recorder.best_model.save(prefix + ".model.h5")
+    candle.plot_history(prefix, history, "loss")
+    candle.plot_history(prefix, history, "r2")
 
-            # test reloadded model prediction
-            # new_model = keras.models.load_model(prefix+'.model.h5')
-            # new_model.load_weights(prefix+cv_ext+'.weights.h5')
-            # new_pred = new_model.predict(x_val_list, batch_size=args.batch_size).flatten()
-            # print('y_val:', y_val[:10])
-            # print('old_pred:', y_val_pred[:10])
-            # print('new_pred:', new_pred[:10])
-
-        candle.plot_history(prefix, history, "loss")
-        candle.plot_history(prefix, history, "r2")
-
-        if K.backend() == "tensorflow":
-            K.clear_session()
+    if K.backend() == "tensorflow":
+        K.clear_session()
 
     if not args.gen:
         if args.use_combo_score:

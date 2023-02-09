@@ -1,3 +1,8 @@
 *.pyc
 __pycache__/
 Data
+examples/rnngen/mosesrun/smiles.txt
+save/
+train/
+validation/
+run.*.json

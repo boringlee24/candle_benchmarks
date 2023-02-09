@@ -82,10 +82,10 @@ additional_definitions = [
     {
         "name": "cp",
         "type": candle.str2bool,
-        "default": True,
+        "default": False,
         "help": "checkpoint models with best val_loss",
     },
-    {"name": "tb", "type": candle.str2bool, "default": True, "help": "use tensorboard"},
+    {"name": "tb", "type": candle.str2bool, "default": False, "help": "use tensorboard"},
     {
         "name": "use_mean_growth",
         "type": candle.str2bool,
@@ -120,6 +120,29 @@ additional_definitions = [
         "nargs": "+",
         "default": [],
         "help": "drug line IDs to exclude",
+    },
+    {
+        "name": "iter-limit", 
+        "type": int, 
+        "default": 2000,
+        "help": "Number of iterations as a limit for benchmarking purpose"
+    },
+    # {
+    #     "name": "benchmarking", 
+    #     "action": "store_true", 
+    #     "help": "Benchmarking mode"
+    # },
+    {
+        "name": "gpu-type", 
+        "type": str, 
+        "default": "unspecified_gpu",
+        "help": "GPU type used for benchmarking"
+    },
+    {
+        "name": "num-gpu", 
+        "type": int, 
+        "default": 4,
+        "help": "Number of GPUs used for benchmarking"
     },
 ]
 

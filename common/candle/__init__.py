@@ -101,61 +101,61 @@ from viz_utils import (
 # __version__ = '0.0.0'
 
 
-if "tensorflow.keras" in sys.modules:
-    print("Importing candle utils for keras")
-    # import from keras_utils
-    # from keras_utils import dense
-    # from keras_utils import add_dense
-    from ckpt_keras_utils import CandleCheckpointCallback, MultiGPUCheckpoint, restart
-    from clr_keras_utils import CyclicLR, clr_callback, clr_set_args
-    from keras_utils import (
-        LoggingCallback,
-        PermanentDropout,
-        build_initializer,
-        build_optimizer,
-        get_function,
-        mae,
-        mse,
-        r2,
-        register_permanent_dropout,
-        set_parallelism_threads,
-        set_seed,
-    )
-    from solr_keras import (
-        CandleRemoteMonitor,
-        TerminateOnTimeOut,
-        compute_trainable_params,
-    )
-    from uq_keras_utils import (
-        AbstentionAdapt_Callback,
-        Contamination_Callback,
-        abstention_acc_class_i_metric,
-        abstention_acc_metric,
-        abstention_class_i_metric,
-        abstention_loss,
-        abstention_metric,
-        acc_class_i_metric,
-        add_index_to_output,
-        add_model_output,
-        contamination_loss,
-        heteroscedastic_loss,
-        mae_contamination_metric,
-        mae_heteroscedastic_metric,
-        meanS_heteroscedastic_metric,
-        modify_labels,
-        mse_contamination_metric,
-        mse_heteroscedastic_metric,
-        quantile_loss,
-        quantile_metric,
-        r2_contamination_metric,
-        r2_heteroscedastic_metric,
-        sparse_abstention_acc_metric,
-        sparse_abstention_loss,
-        triple_quantile_loss,
-    )
-    from viz_utils import plot_metrics
+# if "tensorflow.keras" in sys.modules:
+print("Importing candle utils for keras")
+# import from keras_utils
+# from keras_utils import dense
+# from keras_utils import add_dense
+from ckpt_keras_utils import CandleCheckpointCallback, MultiGPUCheckpoint, restart
+from clr_keras_utils import CyclicLR, clr_callback, clr_set_args
+from keras_utils import (
+    LoggingCallback,
+    PermanentDropout,
+    build_initializer,
+    build_optimizer,
+    get_function,
+    mae,
+    mse,
+    r2,
+    register_permanent_dropout,
+    set_parallelism_threads,
+    set_seed,
+)
+from solr_keras import (
+    CandleRemoteMonitor,
+    TerminateOnTimeOut,
+    compute_trainable_params,
+)
+from uq_keras_utils import (
+    AbstentionAdapt_Callback,
+    Contamination_Callback,
+    abstention_acc_class_i_metric,
+    abstention_acc_metric,
+    abstention_class_i_metric,
+    abstention_loss,
+    abstention_metric,
+    acc_class_i_metric,
+    add_index_to_output,
+    add_model_output,
+    contamination_loss,
+    heteroscedastic_loss,
+    mae_contamination_metric,
+    mae_heteroscedastic_metric,
+    meanS_heteroscedastic_metric,
+    modify_labels,
+    mse_contamination_metric,
+    mse_heteroscedastic_metric,
+    quantile_loss,
+    quantile_metric,
+    r2_contamination_metric,
+    r2_heteroscedastic_metric,
+    sparse_abstention_acc_metric,
+    sparse_abstention_loss,
+    triple_quantile_loss,
+)
+from viz_utils import plot_metrics
 
-elif "torch" in sys.modules:
+if "torch" in sys.modules:
     print("Importing candle utils for pytorch")
     from pytorch_utils import set_parallelism_threads  # for compatibility
     from pytorch_utils import (
@@ -168,5 +168,5 @@ elif "torch" in sys.modules:
         xent,
     )
 
-else:
-    raise Exception("No backend has been specified.")
+# else:
+#     raise Exception("No backend has been specified.")
