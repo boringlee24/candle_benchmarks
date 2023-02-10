@@ -7,6 +7,8 @@ from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.regularizers import l2
+import tensorflow as tf
+from callback_utils import RecordBatch
 
 
 def initialize_parameters(default_model="p1b2_default_model.txt"):
@@ -28,12 +30,16 @@ def initialize_parameters(default_model="p1b2_default_model.txt"):
 
 def run(gParameters):
 
+    num_gpu = gParameters['num_gpu']
+    gpu_type = gParameters['gpu_type']
+    save_dir = f'benchmark_logs/{num_gpu}x{gpu_type}'
+
     # Construct extension to save model
     ext = p1b2.extension_from_parameters(gParameters, ".keras")
     candle.verify_path(gParameters["save_path"])
-    prefix = "{}{}".format(gParameters["save_path"], ext)
-    logfile = gParameters["logfile"] if gParameters["logfile"] else prefix + ".log"
-    candle.set_up_logger(logfile, p1b2.logger, gParameters["verbose"])
+    # prefix = "{}{}".format(gParameters["save_path"], ext)
+    # logfile = gParameters["logfile"] if gParameters["logfile"] else prefix + ".log"
+    # candle.set_up_logger(logfile, p1b2.logger, gParameters["verbose"])
     p1b2.logger.info("Params: {}".format(gParameters))
 
     # Get default parameters for initialization and optimizer functions
@@ -74,66 +80,74 @@ def run(gParameters):
     # Define MLP architecture
     layers = gParameters["dense"]
 
-    if layers is not None:
-        if type(layers) != list:
-            layers = list(layers)
-        for i, l in enumerate(layers):
-            if i == 0:
-                x = Dense(
-                    l,
-                    activation=activation,
-                    kernel_initializer=initializer_weights,
-                    bias_initializer=initializer_bias,
-                    kernel_regularizer=l2(gParameters["reg_l2"]),
-                    activity_regularizer=l2(gParameters["reg_l2"]),
-                )(input_vector)
-            else:
-                x = Dense(
-                    l,
-                    activation=activation,
-                    kernel_initializer=initializer_weights,
-                    bias_initializer=initializer_bias,
-                    kernel_regularizer=l2(gParameters["reg_l2"]),
-                    activity_regularizer=l2(gParameters["reg_l2"]),
-                )(x)
-            if gParameters["dropout"]:
-                x = Dropout(gParameters["dropout"])(x)
-        output = Dense(
-            output_dim,
-            activation=activation,
-            kernel_initializer=initializer_weights,
-            bias_initializer=initializer_bias,
-        )(x)
-    else:
-        output = Dense(
-            output_dim,
-            activation=activation,
-            kernel_initializer=initializer_weights,
-            bias_initializer=initializer_bias,
-        )(input_vector)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
 
-    # Build MLP model
-    mlp = Model(outputs=output, inputs=input_vector)
-    p1b2.logger.debug("Model: {}".format(mlp.to_json()))
+        if layers is not None:
+            if type(layers) != list:
+                layers = list(layers)
+            for i, l in enumerate(layers):
+                if i == 0:
+                    x = Dense(
+                        l,
+                        activation=activation,
+                        kernel_initializer=initializer_weights,
+                        bias_initializer=initializer_bias,
+                        kernel_regularizer=l2(gParameters["reg_l2"]),
+                        activity_regularizer=l2(gParameters["reg_l2"]),
+                    )(input_vector)
+                else:
+                    x = Dense(
+                        l,
+                        activation=activation,
+                        kernel_initializer=initializer_weights,
+                        bias_initializer=initializer_bias,
+                        kernel_regularizer=l2(gParameters["reg_l2"]),
+                        activity_regularizer=l2(gParameters["reg_l2"]),
+                    )(x)
+                if gParameters["dropout"]:
+                    x = Dropout(gParameters["dropout"])(x)
+            output = Dense(
+                output_dim,
+                activation=activation,
+                kernel_initializer=initializer_weights,
+                bias_initializer=initializer_bias,
+            )(x)
+        else:
+            output = Dense(
+                output_dim,
+                activation=activation,
+                kernel_initializer=initializer_weights,
+                bias_initializer=initializer_bias,
+            )(input_vector)
 
-    # Define optimizer
-    optimizer = candle.build_optimizer(
-        gParameters["optimizer"], gParameters["learning_rate"], kerasDefaults
-    )
+        # Build MLP model
+        mlp = Model(outputs=output, inputs=input_vector)
+    # p1b2.logger.debug("Model: {}".format(mlp.to_json()))
 
-    # Compile and display model
-    mlp.compile(loss=gParameters["loss"], optimizer=optimizer, metrics=["accuracy"])
-    mlp.summary()
+        # Define optimizer
+        optimizer = candle.build_optimizer(
+            gParameters["optimizer"], gParameters["learning_rate"], kerasDefaults
+        )
+
+        # Compile and display model
+        mlp.compile(loss=gParameters["loss"], optimizer=optimizer, metrics=["accuracy"])
+    # mlp.summary()
 
     # Seed random generator for training
     np.random.seed(seed)
+
+    custom_callback = RecordBatch(save_dir = save_dir, 
+                                    model_name = 'p1b2',
+                                    end_batch = gParameters['iter_limit'])
 
     mlp.fit(
         X_train,
         y_train,
         batch_size=gParameters["batch_size"],
         epochs=gParameters["epochs"],
-        validation_data=(X_val, y_val),
+        # validation_data=(X_val, y_val),
+        callbacks=[custom_callback]
     )
 
     # model save

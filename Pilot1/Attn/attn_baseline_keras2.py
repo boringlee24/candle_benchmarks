@@ -30,6 +30,7 @@ from tensorflow.keras.callbacks import (
 from tensorflow.keras.layers import BatchNormalization, Dense, Dropout, Input
 from tensorflow.keras.models import Model, model_from_json
 from tensorflow.keras.utils import to_categorical
+from callback_utils import RecordBatch
 
 np.set_printoptions(precision=4)
 tf.compat.v1.disable_eager_execution()
@@ -180,7 +181,7 @@ def build_attention_model(params, PS):
 
     outputs = Dense(params["dense"][-1], activation=params["activation"][-1])(x)
     model = Model(inputs=inputs, outputs=outputs)
-    model.summary()
+    # model.summary()
 
     return model
 
@@ -189,6 +190,8 @@ def run(params):
     args = candle.ArgumentStruct(**params)
     seed = args.rng_seed
     candle.set_seed(seed)
+
+    save_dir = f'benchmark_logs/{args.num_gpu}x{args.gpu_type}'
 
     # Construct extension to save model
     ext = attn.extension_from_parameters(params, "keras")
@@ -247,8 +250,9 @@ def run(params):
     print("Y_test shape:", Y_test.shape)
 
     PS = X_train.shape[1]
-    model = build_attention_model(params, PS)
 
+    strategy = tf.distribute.MirroredStrategy()
+    
     kerasDefaults = candle.keras_default_config()
     if params["momentum"]:
         kerasDefaults["momentum_sgd"] = params["momentum"]
@@ -257,7 +261,10 @@ def run(params):
         params["optimizer"], params["learning_rate"], kerasDefaults
     )
 
-    model.compile(loss=params["loss"], optimizer=optimizer, metrics=["acc", tf_auc])
+    with strategy.scope():
+        model = build_attention_model(params, PS)
+
+        model.compile(loss=params["loss"], optimizer=optimizer, metrics=["acc"])#, tf_auc])
 
     # set up a bunch of callbacks to do work during model training..
 
@@ -289,50 +296,29 @@ def run(params):
 
     history_logger = LoggingCallback(attn.logger.debug)
 
-    callbacks = [candle_monitor, timeout_monitor, csv_logger, history_logger]
+    callbacks = [candle_monitor]#, timeout_monitor]
 
-    if params["reduce_lr"]:
-        callbacks.append(reduce_lr)
+    # if params["reduce_lr"]:
+    #     callbacks.append(reduce_lr)
 
     if params["use_cp"]:
         callbacks.append(checkpointer)
     if params["use_tb"]:
         callbacks.append(tensorboard)
-    if params["early_stop"]:
-        callbacks.append(early_stop)
+    # if params["early_stop"]:
+    #     callbacks.append(early_stop)
 
     epochs = params["epochs"]
     batch_size = params["batch_size"]
     history = model.fit(
         X_train,
         Y_train,
-        class_weight=d_class_weights,
+        # class_weight=d_class_weights,
         batch_size=batch_size,
         epochs=epochs,
-        verbose=1,
-        validation_data=(X_val, Y_val),
-        callbacks=callbacks,
+        verbose=1
+        # callbacks=callbacks,
     )
-
-    # diagnostic plots
-    if "loss" in history.history.keys():
-        candle.plot_history(params["save_path"] + root_fname, history, "loss")
-    if "acc" in history.history.keys():
-        candle.plot_history(params["save_path"] + root_fname, history, "acc")
-    if "tf_auc" in history.history.keys():
-        candle.plot_history(params["save_path"] + root_fname, history, "tf_auc")
-
-    # Evaluate model
-    score = model.evaluate(X_test, Y_test, verbose=0)
-    Y_predict = model.predict(X_test)
-
-    evaluate_model(
-        params, root_fname, nb_classes, Y_test, _Y_test, Y_predict, pos, total, score
-    )
-
-    save_and_test_saved_model(params, model, root_fname, X_train, X_test, Y_test)
-
-    attn.logger.handlers = []
 
     return history
 

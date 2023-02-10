@@ -17,6 +17,30 @@ additional_definitions = [
     {"name": "noise_cluster", "type": candle.str2bool},
     {"name": "noise_gaussian", "type": candle.str2bool},
     {"name": "noise_type", "type": str},
+    {
+        "name": "iter-limit", 
+        "type": int, 
+        "default": 2000,
+        "help": "Number of iterations as a limit for benchmarking purpose"
+    },
+    {
+        "name": "gpu-type", 
+        "type": str, 
+        "default": "unspecified_gpu",
+        "help": "GPU type used for benchmarking"
+    },
+    {
+        "name": "num-gpu", 
+        "type": int, 
+        "default": 4,
+        "help": "Number of GPUs used for benchmarking"
+    },    
+    # {
+    #     "name": "conf", 
+    #     "type": str, 
+    #     "default": "nt3_perf_bench_model.txt",
+    #     "help": "benchmarking"
+    # },
 ]
 
 required = [

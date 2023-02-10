@@ -124,7 +124,7 @@ additional_definitions = [
     {
         "name": "iter-limit", 
         "type": int, 
-        "default": 2000,
+        "default": 5000,
         "help": "Number of iterations as a limit for benchmarking purpose"
     },
     # {

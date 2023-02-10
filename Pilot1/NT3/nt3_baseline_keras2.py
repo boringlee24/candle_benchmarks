@@ -20,7 +20,8 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.models import Sequential, model_from_json
 from tensorflow.keras.utils import to_categorical
-
+import tensorflow as tf
+from callback_utils import RecordBatch
 
 def initialize_parameters(default_model="nt3_default_model.txt"):
 
@@ -78,11 +79,12 @@ def run(gParameters):
     file_train = gParameters["train_data"]
     file_test = gParameters["test_data"]
     url = gParameters["data_url"]
+    num_gpu = gParameters['num_gpu']
+    gpu_type = gParameters['gpu_type']
+    save_dir = f'benchmark_logs/{num_gpu}x{gpu_type}'
 
     train_file = candle.get_file(file_train, url + file_train, cache_subdir="Pilot1")
     test_file = candle.get_file(file_test, url + file_test, cache_subdir="Pilot1")
-
-    model = Sequential()
 
     initial_epoch = 0
     best_metric_last = None
@@ -108,102 +110,88 @@ def run(gParameters):
     print("X_train shape:", X_train.shape)
     print("X_test shape:", X_test.shape)
 
-    layer_list = list(range(0, len(gParameters["conv"]), 3))
-    for _, i in enumerate(layer_list):
-        filters = gParameters["conv"][i]
-        filter_len = gParameters["conv"][i + 1]
-        stride = gParameters["conv"][i + 2]
-        print(int(i / 3), filters, filter_len, stride)
-        if gParameters["pool"]:
-            pool_list = gParameters["pool"]
-            if type(pool_list) != list:
-                pool_list = list(pool_list)
+    strategy = tf.distribute.MirroredStrategy()
+    with strategy.scope():
+        model = Sequential()
 
-        if filters <= 0 or filter_len <= 0 or stride <= 0:
-            break
-        if "locally_connected" in gParameters:
-            model.add(
-                LocallyConnected1D(
-                    filters,
-                    filter_len,
-                    strides=stride,
-                    padding="valid",
-                    input_shape=(x_train_len, 1),
-                )
-            )
-        else:
-            # input layer
-            if i == 0:
+        layer_list = list(range(0, len(gParameters["conv"]), 3))
+        for _, i in enumerate(layer_list):
+            filters = gParameters["conv"][i]
+            filter_len = gParameters["conv"][i + 1]
+            stride = gParameters["conv"][i + 2]
+            print(int(i / 3), filters, filter_len, stride)
+            if gParameters["pool"]:
+                pool_list = gParameters["pool"]
+                if type(pool_list) != list:
+                    pool_list = list(pool_list)
+
+            if filters <= 0 or filter_len <= 0 or stride <= 0:
+                break
+            if "locally_connected" in gParameters:
                 model.add(
-                    Conv1D(
-                        filters=filters,
-                        kernel_size=filter_len,
+                    LocallyConnected1D(
+                        filters,
+                        filter_len,
                         strides=stride,
                         padding="valid",
                         input_shape=(x_train_len, 1),
                     )
                 )
             else:
-                model.add(
-                    Conv1D(
-                        filters=filters,
-                        kernel_size=filter_len,
-                        strides=stride,
-                        padding="valid",
+                # input layer
+                if i == 0:
+                    model.add(
+                        Conv1D(
+                            filters=filters,
+                            kernel_size=filter_len,
+                            strides=stride,
+                            padding="valid",
+                            input_shape=(x_train_len, 1),
+                        )
                     )
-                )
-        model.add(Activation(gParameters["activation"]))
-        if gParameters["pool"]:
-            model.add(MaxPooling1D(pool_size=pool_list[int(i / 3)]))
-
-    model.add(Flatten())
-
-    for layer in gParameters["dense"]:
-        if layer:
-            model.add(Dense(layer))
+                else:
+                    model.add(
+                        Conv1D(
+                            filters=filters,
+                            kernel_size=filter_len,
+                            strides=stride,
+                            padding="valid",
+                        )
+                    )
             model.add(Activation(gParameters["activation"]))
-            if gParameters["dropout"]:
-                model.add(Dropout(gParameters["dropout"]))
-    model.add(Dense(gParameters["classes"]))
-    model.add(Activation(gParameters["out_activation"]))
+            if gParameters["pool"]:
+                model.add(MaxPooling1D(pool_size=pool_list[int(i / 3)]))
 
-    J = candle.restart(gParameters, model)
-    if J is not None:
-        initial_epoch = J["epoch"]
-        best_metric_last = J["best_metric_last"]
-        gParameters["ckpt_best_metric_last"] = best_metric_last
-        print("initial_epoch: %i" % initial_epoch)
+        model.add(Flatten())
 
-    ckpt = candle.CandleCheckpointCallback(gParameters, verbose=False)
+        for layer in gParameters["dense"]:
+            if layer:
+                model.add(Dense(layer))
+                model.add(Activation(gParameters["activation"]))
+                if gParameters["dropout"]:
+                    model.add(Dropout(gParameters["dropout"]))
+        model.add(Dense(gParameters["classes"]))
+        model.add(Activation(gParameters["out_activation"]))
 
-    # Reference case
-    # model.add(Conv1D(filters=128, kernel_size=20, strides=1, padding='valid', input_shape=(P, 1)))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling1D(pool_size=1))
-    # model.add(Conv1D(filters=128, kernel_size=10, strides=1, padding='valid'))
-    # model.add(Activation('relu'))
-    # model.add(MaxPooling1D(pool_size=10))
-    # model.add(Flatten())
-    # model.add(Dense(200))
-    # model.add(Activation('relu'))
-    # model.add(Dropout(0.1))
-    # model.add(Dense(20))
-    # model.add(Activation('relu'))
-    # model.add(Dropout(0.1))
-    # model.add(Dense(CLASSES))
-    # model.add(Activation('softmax'))
+    # J = candle.restart(gParameters, model)
+    # if J is not None:
+    #     initial_epoch = J["epoch"]
+    #     best_metric_last = J["best_metric_last"]
+    #     gParameters["ckpt_best_metric_last"] = best_metric_last
+    #     print("initial_epoch: %i" % initial_epoch)
 
-    kerasDefaults = candle.keras_default_config()
+    # ckpt = candle.CandleCheckpointCallback(gParameters, verbose=False)
+        kerasDefaults = candle.keras_default_config()
 
-    # Define optimizer
-    optimizer = candle.build_optimizer(
-        gParameters["optimizer"], gParameters["learning_rate"], kerasDefaults
-    )
+        # Define optimizer
+        optimizer = candle.build_optimizer(
+            gParameters["optimizer"], gParameters["learning_rate"], kerasDefaults
+        )
 
-    model.summary()
-    model.compile(
-        loss=gParameters["loss"], optimizer=optimizer, metrics=[gParameters["metrics"]]
-    )
+        model.summary()
+        model.compile(
+            loss=gParameters["loss"], optimizer=optimizer, metrics=[gParameters["metrics"]]
+        )
 
     output_dir = gParameters["output_dir"]
 
@@ -217,20 +205,14 @@ def run(gParameters):
     model_name = gParameters["model_name"]
     # path = '{}/{}.autosave.model.h5'.format(output_dir, model_name)
     # checkpointer = ModelCheckpoint(filepath=path, verbose=1, save_weights_only=False, save_best_only=True)
-    csv_logger = CSVLogger("{}/training.log".format(output_dir))
-    reduce_lr = ReduceLROnPlateau(
-        monitor="val_loss",
-        factor=0.1,
-        patience=10,
-        verbose=1,
-        mode="auto",
-        min_delta=0.0001,
-        cooldown=0,
-        min_lr=0,
-    )
     candleRemoteMonitor = candle.CandleRemoteMonitor(params=gParameters)
     timeoutMonitor = candle.TerminateOnTimeOut(gParameters["timeout"])
 
+    custom_callback = RecordBatch(save_dir = save_dir, 
+                                    model_name = 'nt3',
+                                    end_batch = gParameters['iter_limit'])
+
+    print(gParameters["batch_size"])
     history = model.fit(
         X_train,
         Y_train,
@@ -238,8 +220,8 @@ def run(gParameters):
         epochs=gParameters["epochs"],
         initial_epoch=initial_epoch,
         verbose=1,
-        validation_data=(X_test, Y_test),
-        callbacks=[csv_logger, reduce_lr, candleRemoteMonitor, timeoutMonitor, ckpt],
+        # validation_data=(X_test, Y_test),
+        callbacks=[candleRemoteMonitor, timeoutMonitor, custom_callback],
     )
 
     score = model.evaluate(X_test, Y_test, verbose=0)

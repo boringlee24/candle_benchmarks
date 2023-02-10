@@ -16,8 +16,8 @@
                 "CUDA_VISIBLE_DEVICES": "0,1"
             },        
             "args": [ "--gpu-type", "v100", "--num-gpu", "2", 
-                    "--iter-limit", "5000"]
-
+                    "--iter-limit", "2000"]
+                    // "--conf", "nt3_perf_bench_model.txt"]
         }
     ]
 }

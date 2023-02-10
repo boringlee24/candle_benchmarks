@@ -18,7 +18,26 @@ additional_definitions = [
         "type": float,
         "default": 0.0,
         "help": "weight of regularization for l2 norm of nn weights",
-    }
+    },
+    {
+        "name": "iter-limit", 
+        "type": int, 
+        "default": 5000,
+        "help": "Number of iterations as a limit for benchmarking purpose"
+    },
+    {
+        "name": "gpu-type", 
+        "type": str, 
+        "default": "unspecified_gpu",
+        "help": "GPU type used for benchmarking"
+    },
+    {
+        "name": "num-gpu", 
+        "type": int, 
+        "default": 4,
+        "help": "Number of GPUs used for benchmarking"
+    },    
+
 ]
 
 required = [

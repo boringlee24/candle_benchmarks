@@ -25,6 +25,25 @@ additional_definitions = [
     {"name": "out_layer", "type": int, "help": "Size of output layer"},
     {"name": "transformer_depth", "type": int, "help": "Number of transformer layers"},
     {"name": "vocab_size", "type": int, "help": "Vocabulary size"},
+    {
+        "name": "iter-limit", 
+        "type": int, 
+        "default": 2000,
+        "help": "Number of iterations as a limit for benchmarking purpose"
+    },
+    {
+        "name": "gpu-type", 
+        "type": str, 
+        "default": "unspecified_gpu",
+        "help": "GPU type used for benchmarking"
+    },
+    {
+        "name": "num-gpu", 
+        "type": int, 
+        "default": 4,
+        "help": "Number of GPUs used for benchmarking"
+    },    
+
 ]
 
 required = []

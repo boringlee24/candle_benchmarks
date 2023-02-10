@@ -856,7 +856,6 @@ def run(params):
             shuffle=args.shuffle,
             epochs=args.epochs,
             callbacks=callbacks,
-            validation_data=(x_val_list, y_val),
         )
 
     if args.cp:
