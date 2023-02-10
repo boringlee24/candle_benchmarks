@@ -13,10 +13,10 @@
             "justMyCode": false,
             "cwd": "${fileDirname}",
             "env": {
-                "CUDA_VISIBLE_DEVICES": "0,1,2,3"
+                "CUDA_VISIBLE_DEVICES": "0,1"
             },        
-            "args": [ "--gpu-type", "v100", "--num-gpu", "4", 
-                    "--iter-limit", "200"]
+            "args": [ "--gpu-type", "v100", "--num-gpu", "2", 
+                    "--iter-limit", "5000"]
 
         }
     ]
