@@ -1,3 +1,25 @@
+# How to run the benchmarks for HPC carbon
+
+There are 5 models that are set up for benchmarking, you can find them in the ```Pilot1/``` directory.
+
+The 5 models are ```Combo```, ```NT3```, ```P1B2```, ```ST1```, and ```TC1```. 
+
+## How to run
+
+Go to the directory of each model. Run this command to benchmark over 4 GPUs:
+
+```
+CUDA_VISIBLE_DEVICES=0,1,2,3 python <model-spacific-name>_baseline_keras2.py --gpu-type XXX --num-gpu 4 
+```
+
+If there are less number of GPUs (say 2), need to change
+```
+CUDA_VISIBLE_DEVICES=0,1
+```
+and inside the ```<model-spacific-name>_default_model.txt``` file, change the ```batch_size``` setting linearly to number of GPUs (e.g., if the value was 256, change it to 128 when reducing GPU number from 4 to 2, or change to 64 if GPU changes from 4 to 1.
+
+---------------------------------
+
 # Benchmarks
 
 ECP-CANDLE Benchmarks
