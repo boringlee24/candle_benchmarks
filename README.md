@@ -8,7 +8,7 @@ The 5 models are ```Combo```, ```NT3```, ```P1B2```, ```ST1```, and ```TC1```.
 
 To run in discovery, create an anaconda environment using the ```environment.yml``` file. Then activate the ``tf2`` conda environment.
 
-To run in AWS, go to the ``containerized_distributed_training`` repo and launch the container just like the other benchmarks.
+To run in AWS, go to the ``containerized_distributed_training`` repo and launch the container just like the other benchmarks. Note that in AWS, if you use ``g4dn.xlarge`` instance you may run into out-of-memory issue, consider using ``g4dn.2xlarge`` when debugging on a single T4 GPU.
 
 ## How to run in discovery
 
