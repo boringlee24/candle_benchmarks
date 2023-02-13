@@ -4,7 +4,13 @@ There are 5 models that are set up for benchmarking, you can find them in the ``
 
 The 5 models are ```Combo```, ```NT3```, ```P1B2```, ```ST1```, and ```TC1```. 
 
-## How to run
+## How to set up
+
+To run in discovery, create an anaconda environment using the ```environment.yml``` file. Then activate the ``tf2`` conda environment.
+
+To run in AWS, go to the ``containerized_distributed_training`` repo and launch the container just like the other benchmarks.
+
+## How to run in discovery
 
 Go to the directory of each model. Run this command to benchmark over 4 GPUs:
 
