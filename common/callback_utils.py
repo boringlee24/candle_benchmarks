@@ -3,11 +3,11 @@ from time import perf_counter
 import json
 import sys
 from pathlib import Path
+FILE=Path(__file__).resolve()
+ROOT = FILE.parents[1]
 if Path('/workspace/power_monitor').is_dir():
     sys.path.append('/workspace/power_monitor')
 else:
-    FILE=Path(__file__).resolve()
-    ROOT = FILE.parents[1]
     GITROOT=FILE.parents[2]
     sys.path.append(f'{str(GITROOT)}/power_monitor')
 from carbontracker.tracker import CarbonTrackerManual
