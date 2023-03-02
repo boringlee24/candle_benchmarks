@@ -12,7 +12,7 @@ for ARCH in $TESTCASES
 do
     python ${ARCH}_baseline_keras2.py \
     --batch_size $((NUM_GPU*single_batch[$ARCH])) --gpu-type $GPU_TYPE \
-    --num-gpu $NUM_GPU --iter-limit 300 &&
+    --num-gpu $NUM_GPU &&
     sleep 30
 done
 
