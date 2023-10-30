@@ -1,4 +1,8 @@
-# How to run the benchmarks for HPC carbon
+# CANDLE HPC Benchmarks
+
+This repository is a fork from the [CANDLE](https://github.com/ECP-CANDLE/Benchmarks).
+
+The benchmark is used for our SC'23 paper Toward Sustainable HPC: Carbon Footprint Estimation and Environmental Implications of HPC Systems. Please refer to https://github.com/boringlee24/sc23-sustainability for more information.
 
 There are 5 models that are set up for benchmarking, you can find them in the ```Pilot1/``` directory.
 
@@ -6,11 +10,11 @@ The 5 models are ```Combo```, ```NT3```, ```P1B2```, ```ST1```, and ```TC1```.
 
 ## How to set up
 
-To run in discovery, create an anaconda environment using the ```environment.yml``` file. Then activate the ``tf2`` conda environment.
+To run in local cluster, create an anaconda environment using the ```environment.yml``` file. Then activate the ``tf2`` conda environment.
 
-To run in AWS, go to the ``containerized_distributed_training`` repo and launch the container just like the other benchmarks. Note that in AWS, if you use ``g4dn.xlarge`` instance you may run into out-of-memory issue, consider using ``g4dn.2xlarge`` when debugging on a single T4 GPU.
+To run in AWS, go to the [containerized_distributed_training](https://github.com/boringlee24/containerized_distributed_training) repo and launch the container. Note that in AWS, if you use ``g4dn.xlarge`` instance you may run into out-of-memory issue, consider using ``g4dn.2xlarge`` when debugging on a single T4 GPU.
 
-## How to run in discovery
+## How to run in local cluster
 
 Go to the directory of each model. Run this command to benchmark over 4 GPUs:
 
@@ -23,6 +27,10 @@ If there are less number of GPUs (say 2), need to change
 CUDA_VISIBLE_DEVICES=0,1
 ```
 and inside the ```<model-spacific-name>_default_model.txt``` file, change the ```batch_size``` setting linearly to number of GPUs (e.g., if the value was 256, change it to 128 when reducing GPU number from 4 to 2, or change to 64 if GPU changes from 4 to 1.
+
+## Benchmark data
+
+The collected benchmark data is available in ``benchmark_logs`` directory. For example, 4xv100 represents running over 4 V100 GPUs, carbon_{testcase}.json reports the operational carbon, while time_{testcase}.json reports the mini-batch time, representing performance.
 
 ---------------------------------
 
