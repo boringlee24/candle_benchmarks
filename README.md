@@ -14,6 +14,8 @@ To run in local cluster, create an anaconda environment using the ```environment
 
 To run in AWS, go to the [containerized_distributed_training](https://github.com/boringlee24/containerized_distributed_training) repo and launch the container. Note that in AWS, if you use ``g4dn.xlarge`` instance you may run into out-of-memory issue, consider using ``g4dn.2xlarge`` when debugging on a single T4 GPU.
 
+To measure carbon emission, this repository uses [modified carbon tracker](https://github.com/boringlee24/power_monitor).
+
 ## How to run in local cluster
 
 Go to the directory of each model. Run this command to benchmark over 4 GPUs:
